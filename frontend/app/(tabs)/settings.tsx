@@ -14,7 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
-import { smsModule } from '../../src/native/smsModule';
+import { smsReceiver } from '../../src/native/smsReceiver';
 
 export default function SettingsScreen() {
   const { settings, updateSettings, loadDemo, clearData, simulateSMS } = useApp();
@@ -50,7 +50,7 @@ export default function SettingsScreen() {
       return;
     }
     
-    const granted = await smsModule.requestPermissions();
+    const granted = await smsReceiver.requestSMSPermissions();
     if (granted) {
       Alert.alert('Success', 'SMS permission granted. The app will now detect UPI transactions.');
     } else {

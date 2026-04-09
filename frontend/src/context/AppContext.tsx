@@ -4,7 +4,7 @@ import { storage } from '../utils/storage';
 import { DEMO_TRANSACTIONS } from '../utils/demoData';
 import { DEFAULT_SMART_RULES, suggestCategory } from '../utils/smartRules';
 import { format } from 'date-fns';
-import { smsModule } from '../native/smsModule';
+import { smsReceiver } from '../native/smsReceiver';
 
 interface AppContextType {
   transactions: Transaction[];
@@ -52,12 +52,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     loadData();
     setupSMSListener();
-    return () => smsModule.stopListening();
+    return () => smsReceiver.cleanup();
   }, []);
 
   const loadData = async () => {
     setIsLoading(true);
     try {
+      // Initialize SMS receiver (requests notification permissions)
+      await smsReceiver.initialize();
+      
       const [txs, loadedRules, loadedSettings] = await Promise.all([
         storage.loadTransactions(),
         storage.loadRules(),
@@ -82,7 +85,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const setupSMSListener = () => {
-    smsModule.startListening((parsed) => {
+    smsReceiver.addListener((parsed) => {
       setPendingSMS(parsed);
     });
   };
@@ -128,8 +131,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setPendingSMS(null);
   }, []);
 
-  const simulateSMS = useCallback((message: string) => {
-    smsModule.simulateSMS(message);
+  const simulateSMS = useCallback(async (message: string) => {
+    await smsReceiver.simulateSMS(message);
   }, []);
 
   const updateSettings = useCallback(async (updates: Partial<AppSettings>) => {

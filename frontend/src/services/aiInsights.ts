@@ -31,7 +31,7 @@ export async function generateInsights(
         'HTTP-Referer': 'https://privateledger.app',
       },
       body: JSON.stringify({
-        model: 'openai/gpt-3.5-turbo',
+        model: 'google/gemma-4-26b-a4b-it:free',
         messages: [
           {
             role: 'system',
