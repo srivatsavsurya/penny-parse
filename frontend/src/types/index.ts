@@ -1,10 +1,11 @@
-export type CategoryType = 
+export type CategoryType =
   | 'food'
   | 'travel'
   | 'shopping'
   | 'bills'
   | 'entertainment'
   | 'groceries'
+  | 'transfer'
   | 'others';
 
 export interface Transaction {
@@ -12,13 +13,14 @@ export interface Transaction {
   amount: number;
   merchant: string;
   category: CategoryType;
-  date: string; // ISO string
+  date: string;
   time: string;
   location?: string;
   isCredit: boolean;
-  tags?: string[];
   notes?: string;
-  verified?: 'ENCRYPTED' | 'UPI_VERIFIED';
+  upiRef?: string;
+  bankAccount?: string;
+  source: 'sms' | 'manual';
 }
 
 export interface SmartRule {
@@ -33,5 +35,20 @@ export interface CategoryInfo {
   name: string;
   icon: string;
   color: string;
-  bgColor: string;
+}
+
+export interface AppSettings {
+  openRouterApiKey?: string;
+  enableAiInsights: boolean;
+  autoCategorizeSms: boolean;
+  currency: string;
+}
+
+export interface ParsedSMS {
+  amount: number;
+  merchant: string;
+  isDebit: boolean;
+  upiRef?: string;
+  bankAccount?: string;
+  rawMessage: string;
 }

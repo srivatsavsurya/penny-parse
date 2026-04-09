@@ -1,5 +1,4 @@
-export { TransactionCard } from './TransactionCard';
-export { CategoryChip } from './CategoryChip';
-export { CategoryBreakdown } from './CategoryBreakdown';
-export { AddTransactionModal } from './AddTransactionModal';
-export { PrivacyScore } from './PrivacyScore';
+export { TransactionItem } from './TransactionItem';
+export { AddTransactionSheet } from './AddTransactionSheet';
+export { SpendingByCategory } from './SpendingByCategory';
+export { InsightsCard } from './InsightsCard';
