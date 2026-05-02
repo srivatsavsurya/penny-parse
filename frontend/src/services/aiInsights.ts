@@ -8,133 +8,135 @@ const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 export interface AIInsight {
   title: string;
   description: string;
-  type: 'tip' | 'warning' | 'info';
+  type: 'tip' | 'warning' | 'info' | 'success';
+  icon?: string;
 }
 
 export async function generateInsights(
   transactions: Transaction[],
-  apiKey: string
+  apiKey: string,
+  model = 'google/gemini-2.0-flash-exp:free'
 ): Promise<AIInsight[]> {
-  if (!apiKey) {
-    return getBasicInsights(transactions);
-  }
-
+  if (!apiKey) return getBasicInsights(transactions);
   try {
-    // Prepare spending summary for AI
     const summary = prepareSpendingSummary(transactions);
-    
     const response = await fetch(OPENROUTER_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         'HTTP-Referer': 'https://privateledger.app',
+        'X-Title': 'The Private Ledger',
       },
       body: JSON.stringify({
-        model: 'google/gemma-4-26b-a4b-it:free',
+        model,
         messages: [
           {
             role: 'system',
-            content: 'You are a helpful financial advisor. Analyze the spending data and provide 2-3 brief, actionable insights. Keep each insight under 50 words. Format as JSON array with objects containing "title", "description", and "type" (tip/warning/info).'
+            content:
+              'You are a concise Indian personal-finance advisor. Given a spending summary, return 3-4 actionable insights as a JSON array ONLY (no prose). Each item must be an object: { "title": string (short, <8 words), "description": string (<30 words, actionable), "type": "tip"|"warning"|"info"|"success" }. Use rupees ₹.',
           },
-          {
-            role: 'user',
-            content: `Here is my spending summary for this month:\n${summary}\n\nProvide insights.`
-          }
+          { role: 'user', content: `Spending summary this month:\n${summary}` },
         ],
-        max_tokens: 500,
+        temperature: 0.7,
+        max_tokens: 600,
       }),
     });
-
-    if (!response.ok) {
-      throw new Error('API request failed');
-    }
-
+    if (!response.ok) throw new Error(`OpenRouter error ${response.status}`);
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-    
-    if (content) {
-      try {
-        const insights = JSON.parse(content);
-        return Array.isArray(insights) ? insights : getBasicInsights(transactions);
-      } catch {
-        return getBasicInsights(transactions);
-      }
+    const content = data.choices?.[0]?.message?.content || '';
+    const jsonMatch = content.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (Array.isArray(parsed)) return parsed.slice(0, 5);
     }
-    
     return getBasicInsights(transactions);
-  } catch (error) {
-    console.warn('AI insights failed:', error);
+  } catch (e) {
+    console.warn('AI insights failed:', e);
     return getBasicInsights(transactions);
   }
 }
 
 function prepareSpendingSummary(transactions: Transaction[]): string {
-  const spending: Record<CategoryType, number> = {} as any;
+  const spending: Partial<Record<CategoryType, number>> = {};
   let totalSpent = 0;
   let totalReceived = 0;
+  transactions.forEach((t) => {
+    if (t.isCredit) totalReceived += t.amount;
+    else {
+      totalSpent += t.amount;
+      spending[t.category] = (spending[t.category] || 0) + t.amount;
+    }
+  });
+  const lines = [
+    `Total Spent: ${formatCurrency(totalSpent)}`,
+    `Total Received: ${formatCurrency(totalReceived)}`,
+    `Net: ${formatCurrency(totalReceived - totalSpent)}`,
+    `Transactions: ${transactions.length}`,
+    '',
+    'By Category:',
+  ];
+  Object.entries(spending)
+    .sort((a, b) => (b[1] || 0) - (a[1] || 0))
+    .forEach(([cat, amount]) => {
+      const info = getCategoryInfo(cat as CategoryType);
+      lines.push(`- ${info.name}: ${formatCurrency(amount || 0)}`);
+    });
+  return lines.join('\n');
+}
 
-  transactions.forEach(t => {
-    if (t.isCredit) {
-      totalReceived += t.amount;
-    } else {
+export function getBasicInsights(transactions: Transaction[]): AIInsight[] {
+  const insights: AIInsight[] = [];
+  const spending: Record<string, number> = {};
+  let totalSpent = 0;
+  let totalReceived = 0;
+  transactions.forEach((t) => {
+    if (t.isCredit) totalReceived += t.amount;
+    else {
       totalSpent += t.amount;
       spending[t.category] = (spending[t.category] || 0) + t.amount;
     }
   });
 
-  const lines = [
-    `Total Spent: ${formatCurrency(totalSpent)}`,
-    `Total Received: ${formatCurrency(totalReceived)}`,
-    '',
-    'By Category:',
-  ];
+  if (totalSpent === 0 && totalReceived === 0) return insights;
 
-  Object.entries(spending)
-    .sort((a, b) => b[1] - a[1])
-    .forEach(([cat, amount]) => {
-      const info = getCategoryInfo(cat as CategoryType);
-      lines.push(`- ${info.name}: ${formatCurrency(amount)}`);
-    });
-
-  return lines.join('\n');
-}
-
-// Basic insights without AI
-export function getBasicInsights(transactions: Transaction[]): AIInsight[] {
-  const insights: AIInsight[] = [];
-  const spending: Record<string, number> = {};
-  let totalSpent = 0;
-
-  transactions.filter(t => !t.isCredit).forEach(t => {
-    totalSpent += t.amount;
-    spending[t.category] = (spending[t.category] || 0) + t.amount;
-  });
-
-  if (totalSpent === 0) return [];
-
-  // Find top category
   const sorted = Object.entries(spending).sort((a, b) => b[1] - a[1]);
   if (sorted.length > 0) {
     const [topCat, topAmount] = sorted[0];
-    const percentage = Math.round((topAmount / totalSpent) * 100);
+    const pct = Math.round((topAmount / totalSpent) * 100);
     const info = getCategoryInfo(topCat as CategoryType);
-    
     insights.push({
       title: `${info.name} is your top expense`,
-      description: `${percentage}% of spending (${formatCurrency(topAmount)})`,
-      type: percentage > 40 ? 'warning' : 'info',
+      description: `${pct}% of your spending (${formatCurrency(topAmount)}). ${pct > 40 ? 'Consider setting a budget.' : 'Well balanced.'}`,
+      type: pct > 40 ? 'warning' : 'info',
     });
   }
 
-  // Transaction count
-  const txCount = transactions.filter(t => !t.isCredit).length;
+  const txCount = transactions.filter((t) => !t.isCredit).length;
   if (txCount > 0) {
+    const avg = Math.round(totalSpent / txCount);
     insights.push({
       title: `${txCount} transactions this month`,
-      description: `Average: ${formatCurrency(Math.round(totalSpent / txCount))} per transaction`,
+      description: `Averaging ${formatCurrency(avg)} per transaction. Small frequent spends add up fast.`,
       type: 'info',
     });
+  }
+
+  if (totalReceived > 0) {
+    const savingsRate = Math.round(((totalReceived - totalSpent) / totalReceived) * 100);
+    if (savingsRate > 0) {
+      insights.push({
+        title: `You're saving ${savingsRate}%`,
+        description: `Net positive of ${formatCurrency(totalReceived - totalSpent)} this month. Keep it up!`,
+        type: 'success',
+      });
+    } else {
+      insights.push({
+        title: `Spending exceeds income`,
+        description: `Down ${formatCurrency(totalSpent - totalReceived)} this month. Review non-essentials.`,
+        type: 'warning',
+      });
+    }
   }
 
   return insights;

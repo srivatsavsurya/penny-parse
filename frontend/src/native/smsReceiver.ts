@@ -9,12 +9,15 @@ import { parseUPISMS } from '../utils/smartRules';
 
 // Configure notifications to show when app is in foreground
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    priority: Notifications.AndroidNotificationPriority.HIGH,
-  }),
+  handleNotification: async () =>
+    ({
+      shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      priority: Notifications.AndroidNotificationPriority.HIGH,
+    } as any),
 });
 
 export interface SMSMessage {
@@ -155,8 +158,8 @@ class SMSReceiverModule {
   }
 
   cleanup(): void {
-    if (this.responseListener) {
-      Notifications.removeNotificationSubscription(this.responseListener);
+    if (this.responseListener && typeof this.responseListener.remove === 'function') {
+      this.responseListener.remove();
     }
     this.listeners = [];
   }

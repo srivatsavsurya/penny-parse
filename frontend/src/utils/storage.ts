@@ -1,71 +1,82 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Transaction, SmartRule, AppSettings } from '../types';
-import { DEFAULT_SMART_RULES } from './smartRules';
+import { Transaction, Account, Budget, AppSettings } from '../types';
+import { DEFAULT_ACCOUNTS } from './accounts';
 
 const KEYS = {
-  TRANSACTIONS: '@ledger_transactions',
-  SMART_RULES: '@ledger_rules',
-  SETTINGS: '@ledger_settings',
+  TRANSACTIONS: '@pl_transactions_v2',
+  ACCOUNTS: '@pl_accounts_v2',
+  BUDGETS: '@pl_budgets_v2',
+  SETTINGS: '@pl_settings_v2',
 };
 
 const DEFAULT_SETTINGS: AppSettings = {
   enableAiInsights: false,
   autoCategorizeSms: true,
   currency: 'INR',
+  aiModel: 'google/gemini-2.0-flash-exp:free',
+  firstRun: true,
 };
 
 export const storage = {
-  async saveTransactions(transactions: Transaction[]): Promise<void> {
-    try {
-      await AsyncStorage.setItem(KEYS.TRANSACTIONS, JSON.stringify(transactions));
-    } catch (e) {
-      console.warn('Failed to save transactions:', e);
-    }
-  },
-
   async loadTransactions(): Promise<Transaction[]> {
     try {
       const data = await AsyncStorage.getItem(KEYS.TRANSACTIONS);
       return data ? JSON.parse(data) : [];
-    } catch (e) {
-      console.warn('Failed to load transactions:', e);
+    } catch {
       return [];
     }
   },
-
-  async saveRules(rules: SmartRule[]): Promise<void> {
+  async saveTransactions(list: Transaction[]): Promise<void> {
     try {
-      await AsyncStorage.setItem(KEYS.SMART_RULES, JSON.stringify(rules));
-    } catch (e) {
-      console.warn('Failed to save rules:', e);
-    }
+      await AsyncStorage.setItem(KEYS.TRANSACTIONS, JSON.stringify(list));
+    } catch {}
   },
 
-  async loadRules(): Promise<SmartRule[]> {
+  async loadAccounts(): Promise<Account[]> {
     try {
-      const data = await AsyncStorage.getItem(KEYS.SMART_RULES);
-      return data ? JSON.parse(data) : DEFAULT_SMART_RULES;
-    } catch (e) {
-      console.warn('Failed to load rules:', e);
-      return DEFAULT_SMART_RULES;
+      const data = await AsyncStorage.getItem(KEYS.ACCOUNTS);
+      return data ? JSON.parse(data) : DEFAULT_ACCOUNTS;
+    } catch {
+      return DEFAULT_ACCOUNTS;
     }
   },
-
-  async saveSettings(settings: AppSettings): Promise<void> {
+  async saveAccounts(list: Account[]): Promise<void> {
     try {
-      await AsyncStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
-    } catch (e) {
-      console.warn('Failed to save settings:', e);
+      await AsyncStorage.setItem(KEYS.ACCOUNTS, JSON.stringify(list));
+    } catch {}
+  },
+
+  async loadBudgets(): Promise<Budget[]> {
+    try {
+      const data = await AsyncStorage.getItem(KEYS.BUDGETS);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
     }
+  },
+  async saveBudgets(list: Budget[]): Promise<void> {
+    try {
+      await AsyncStorage.setItem(KEYS.BUDGETS, JSON.stringify(list));
+    } catch {}
   },
 
   async loadSettings(): Promise<AppSettings> {
     try {
       const data = await AsyncStorage.getItem(KEYS.SETTINGS);
       return data ? { ...DEFAULT_SETTINGS, ...JSON.parse(data) } : DEFAULT_SETTINGS;
-    } catch (e) {
-      console.warn('Failed to load settings:', e);
+    } catch {
       return DEFAULT_SETTINGS;
     }
+  },
+  async saveSettings(s: AppSettings): Promise<void> {
+    try {
+      await AsyncStorage.setItem(KEYS.SETTINGS, JSON.stringify(s));
+    } catch {}
+  },
+
+  async clearAll(): Promise<void> {
+    try {
+      await AsyncStorage.multiRemove(Object.values(KEYS));
+    } catch {}
   },
 };

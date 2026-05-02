@@ -5,7 +5,10 @@ export type CategoryType =
   | 'bills'
   | 'entertainment'
   | 'groceries'
+  | 'health'
+  | 'education'
   | 'transfer'
+  | 'income'
   | 'others';
 
 export interface Transaction {
@@ -13,11 +16,37 @@ export interface Transaction {
   amount: number;
   merchant: string;
   category: CategoryType;
-  date: string;
+  accountId?: string;
+  date: string; // yyyy-MM-dd
   time: string;
   isCredit: boolean;
   notes?: string;
+  tags?: string[];
   source: 'sms' | 'manual';
+  upiRef?: string;
+  bankAccount?: string;
+  createdAt: number;
+}
+
+export type AccountType = 'bank' | 'card' | 'cash' | 'wallet';
+
+export interface Account {
+  id: string;
+  name: string;
+  bank?: string;
+  type: AccountType;
+  color: string;
+  balance: number;
+  last4?: string;
+  icon?: string;
+  senderIds?: string[]; // for auto-assign from SMS sender
+}
+
+export interface Budget {
+  id: string;
+  category: CategoryType;
+  amount: number;
+  period: 'monthly';
 }
 
 export interface CategoryInfo {
@@ -25,6 +54,7 @@ export interface CategoryInfo {
   name: string;
   icon: string;
   color: string;
+  bgColor: string;
 }
 
 export interface AppSettings {
@@ -32,4 +62,25 @@ export interface AppSettings {
   autoCategorizeSms: boolean;
   currency: string;
   openRouterApiKey?: string;
+  aiModel: string;
+  firstRun: boolean;
+}
+
+export interface ParsedSMS {
+  amount: number;
+  merchant: string;
+  isDebit: boolean;
+  upiRef?: string;
+  bankAccount?: string;
+  bank?: string;
+  time: string;
+  rawMessage: string;
+  senderId?: string;
+}
+
+export interface SmartRule {
+  id: string;
+  keywords: string[];
+  category: CategoryType;
+  enabled: boolean;
 }

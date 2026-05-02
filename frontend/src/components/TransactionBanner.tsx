@@ -14,7 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { CategoryType } from '../types';
-import { CATEGORIES, getCategoryInfo } from '../utils/categories';
+import { EXPENSE_CATEGORIES, getCategoryInfo } from '../utils/categories';
 import { suggestCategory } from '../utils/upiParser';
 import { colors, radius, spacing, typography } from '../theme/design';
 
@@ -44,23 +44,22 @@ export const TransactionBanner: React.FC<Props> = ({
   onDismiss,
 }) => {
   const insets = useSafeAreaInsets();
-  const suggested = useMemo(() => suggestCategory(merchant), [merchant]);
+  const suggested = useMemo(() => suggestCategory(merchant, !isDebit), [merchant, isDebit]);
   const [selected, setSelected] = React.useState<CategoryType>(suggested);
 
-  // Slide animation
-  const translateY = useRef(new Animated.Value(400)).current;
+  const translateY = useRef(new Animated.Value(500)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    setSelected(suggestCategory(merchant));
-  }, [merchant]);
+    setSelected(suggestCategory(merchant, !isDebit));
+  }, [merchant, isDebit]);
 
   useEffect(() => {
     if (visible) {
       Animated.parallel([
         Animated.timing(translateY, {
           toValue: 0,
-          duration: 320,
+          duration: 340,
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
@@ -71,15 +70,15 @@ export const TransactionBanner: React.FC<Props> = ({
         }),
       ]).start();
     } else {
-      translateY.setValue(400);
+      translateY.setValue(500);
       backdropOpacity.setValue(0);
     }
   }, [visible]);
 
-  const handleDismiss = () => {
+  const close = (cb: () => void) => {
     Animated.parallel([
       Animated.timing(translateY, {
-        toValue: 500,
+        toValue: 600,
         duration: 240,
         easing: Easing.in(Easing.cubic),
         useNativeDriver: true,
@@ -89,40 +88,29 @@ export const TransactionBanner: React.FC<Props> = ({
         duration: 200,
         useNativeDriver: true,
       }),
-    ]).start(() => onDismiss());
-  };
-
-  const handleConfirm = () => {
-    Animated.parallel([
-      Animated.timing(translateY, {
-        toValue: 500,
-        duration: 240,
-        easing: Easing.in(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(backdropOpacity, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-    ]).start(() => onConfirm(selected));
+    ]).start(() => cb());
   };
 
   if (!visible) return null;
 
   const suggestedInfo = getCategoryInfo(suggested);
+  const amountColor = isDebit ? colors.textPrimary : colors.success;
+  const dotColor = isDebit ? colors.error : colors.success;
+
+  // Only expense categories when debit; show income sources for credit (just income)
+  const categoryList = isDebit ? EXPENSE_CATEGORIES : [getCategoryInfo('income'), getCategoryInfo('transfer')];
 
   return (
     <Modal
       visible={visible}
       transparent
       animationType="none"
-      onRequestClose={handleDismiss}
       statusBarTranslucent
+      onRequestClose={() => close(onDismiss)}
     >
       <View style={styles.root}>
         <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={handleDismiss} />
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => close(onDismiss)} />
         </Animated.View>
 
         <Animated.View
@@ -134,95 +122,58 @@ export const TransactionBanner: React.FC<Props> = ({
             },
           ]}
         >
-          {/* Grab handle */}
           <View style={styles.handle} />
 
-          {/* Header row */}
           <View style={styles.header}>
-            <View
-              style={[
-                styles.typeDot,
-                { backgroundColor: isDebit ? colors.error : colors.success },
-              ]}
-            />
-            <Text style={styles.typeLabel}>
-              {isDebit ? 'Payment' : 'Received'}
-            </Text>
+            <View style={[styles.typeDot, { backgroundColor: dotColor }]} />
+            <Text style={styles.typeLabel}>{isDebit ? 'Payment' : 'Received'}</Text>
             <Text style={styles.timeLabel}>{time}</Text>
           </View>
 
-          {/* Amount */}
+          {/* Uniform amount: sign + currency + number all same size */}
           <View style={styles.amountRow}>
-            <Text
-              style={[
-                styles.amountSign,
-                { color: isDebit ? colors.textPrimary : colors.success },
-              ]}
-            >
-              {isDebit ? '\u2212' : '+'}
-            </Text>
-            <Text style={styles.currency}>{'\u20B9'}</Text>
-            <Text
-              style={[
-                styles.amount,
-                { color: isDebit ? colors.textPrimary : colors.success },
-              ]}
-            >
-              {formatAmount(amount)}
+            <Text style={[styles.amountText, { color: amountColor }]} numberOfLines={1}>
+              <Text style={styles.amountText}>{isDebit ? '\u2212' : '+'}</Text>
+              <Text style={styles.amountText}>{'\u20B9'}</Text>
+              <Text style={styles.amountText}>{formatAmount(amount)}</Text>
             </Text>
           </View>
 
-          {/* Merchant */}
-          <Text style={styles.merchant} numberOfLines={1}>
-            {merchant}
-          </Text>
+          <Text style={styles.merchant} numberOfLines={1}>{merchant}</Text>
 
-          {/* Divider */}
           <View style={styles.divider} />
 
-          {/* Category Label */}
           <View style={styles.categoryHeader}>
-            <Text style={styles.categoryLabel}>Category</Text>
+            <Text style={styles.sectionLabel}>Category</Text>
             <View style={styles.suggestedPill}>
-              <View
-                style={[
-                  styles.suggestedDot,
-                  { backgroundColor: suggestedInfo.color },
-                ]}
-              />
-              <Text style={styles.suggestedText}>Suggested</Text>
+              <View style={[styles.suggestedDot, { backgroundColor: suggestedInfo.color }]} />
+              <Text style={styles.suggestedText}>Suggested: {suggestedInfo.name}</Text>
             </View>
           </View>
 
-          {/* Categories */}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.categoryScroll}
           >
-            {CATEGORIES.map((cat) => {
+            {categoryList.map((cat) => {
               const isSelected = selected === cat.id;
               return (
                 <TouchableOpacity
                   key={cat.id}
                   onPress={() => setSelected(cat.id)}
-                  activeOpacity={0.75}
+                  activeOpacity={0.8}
                   style={[
                     styles.chip,
-                    isSelected && styles.chipSelected,
+                    isSelected && { backgroundColor: cat.color, borderColor: cat.color },
                   ]}
                 >
                   <Ionicons
                     name={cat.icon as any}
                     size={16}
-                    color={isSelected ? colors.textInverse : cat.color}
+                    color={isSelected ? '#fff' : cat.color}
                   />
-                  <Text
-                    style={[
-                      styles.chipText,
-                      isSelected && styles.chipTextSelected,
-                    ]}
-                  >
+                  <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
                     {cat.name}
                   </Text>
                 </TouchableOpacity>
@@ -230,20 +181,20 @@ export const TransactionBanner: React.FC<Props> = ({
             })}
           </ScrollView>
 
-          {/* Actions */}
           <View style={styles.actions}>
             <TouchableOpacity
               style={styles.skipBtn}
-              onPress={handleDismiss}
+              onPress={() => close(onDismiss)}
               activeOpacity={0.7}
             >
               <Text style={styles.skipText}>Skip</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.saveBtn}
-              onPress={handleConfirm}
+              onPress={() => close(() => onConfirm(selected))}
               activeOpacity={0.85}
             >
+              <Ionicons name="checkmark" size={18} color="#fff" style={{ marginRight: 6 }} />
               <Text style={styles.saveText}>Save</Text>
             </TouchableOpacity>
           </View>
@@ -254,14 +205,8 @@ export const TransactionBanner: React.FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
-  },
+  root: { flex: 1, justifyContent: 'flex-end' },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0, 0, 0, 0.55)' },
   sheet: {
     backgroundColor: colors.background,
     borderTopLeftRadius: 28,
@@ -269,171 +214,36 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     paddingHorizontal: spacing.xxl,
     ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 20,
-      },
-      android: {
-        elevation: 24,
-      },
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.1, shadowRadius: 20 },
+      android: { elevation: 24 },
     }),
   },
-  handle: {
-    width: 40,
-    height: 4,
-    backgroundColor: colors.border,
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginTop: spacing.sm,
-    marginBottom: spacing.xl,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  typeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: spacing.sm,
-  },
-  typeLabel: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    flex: 1,
-  },
-  timeLabel: {
-    ...typography.caption,
-    color: colors.textTertiary,
-  },
-  amountRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    marginBottom: spacing.xs,
-  },
-  amountSign: {
-    fontSize: 32,
-    fontWeight: '300',
-    marginRight: 2,
-  },
-  currency: {
-    fontSize: 24,
-    fontWeight: '400',
-    color: colors.textSecondary,
-    marginRight: 2,
-  },
-  amount: {
-    fontSize: 40,
-    fontWeight: '500',
-    letterSpacing: -1,
+  handle: { width: 40, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: 'center', marginTop: spacing.sm, marginBottom: spacing.xl },
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.lg },
+  typeDot: { width: 6, height: 6, borderRadius: 3, marginRight: spacing.sm },
+  typeLabel: { ...typography.caption, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.8, flex: 1 },
+  timeLabel: { ...typography.caption, color: colors.textTertiary, letterSpacing: 0.4 },
+  amountRow: { marginBottom: spacing.xs },
+  amountText: {
+    fontSize: 38,
+    fontWeight: '600',
+    letterSpacing: -0.8,
     lineHeight: 46,
   },
-  merchant: {
-    fontSize: 17,
-    fontWeight: '500',
-    color: colors.textPrimary,
-    marginBottom: spacing.xl,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.borderLight,
-    marginBottom: spacing.xl,
-  },
-  categoryHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
-  },
-  categoryLabel: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-  suggestedPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    backgroundColor: colors.surface,
-    borderRadius: radius.full,
-  },
-  suggestedDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    marginRight: 6,
-  },
-  suggestedText: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: colors.textSecondary,
-    letterSpacing: 0.3,
-  },
-  categoryScroll: {
-    paddingRight: spacing.xxl,
-    gap: spacing.sm,
-    paddingVertical: 2,
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    backgroundColor: colors.surface,
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  chipSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  chipText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.textSecondary,
-    marginLeft: 6,
-  },
-  chipTextSelected: {
-    color: colors.textInverse,
-  },
-  actions: {
-    flexDirection: 'row',
-    marginTop: spacing.xxl,
-    gap: spacing.md,
-  },
-  skipBtn: {
-    flex: 1,
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.lg,
-    backgroundColor: colors.surface,
-  },
-  skipText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: colors.textSecondary,
-  },
-  saveBtn: {
-    flex: 2,
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.lg,
-    backgroundColor: colors.primary,
-  },
-  saveText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.textInverse,
-    letterSpacing: 0.2,
-  },
+  merchant: { fontSize: 17, fontWeight: '500', color: colors.textPrimary, marginBottom: spacing.xl },
+  divider: { height: 1, backgroundColor: colors.borderLight, marginBottom: spacing.xl },
+  categoryHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.md },
+  sectionLabel: { ...typography.caption, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.8 },
+  suggestedPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, backgroundColor: colors.surface, borderRadius: radius.full },
+  suggestedDot: { width: 6, height: 6, borderRadius: 3, marginRight: 6 },
+  suggestedText: { fontSize: 11, fontWeight: '600', color: colors.textSecondary, letterSpacing: 0.2 },
+  categoryScroll: { paddingRight: spacing.xxl, gap: spacing.sm, paddingVertical: 2 },
+  chip: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 14, backgroundColor: colors.surface, borderRadius: radius.full, borderWidth: 1, borderColor: 'transparent' },
+  chipText: { fontSize: 14, fontWeight: '500', color: colors.textSecondary, marginLeft: 6 },
+  chipTextSelected: { color: '#fff' },
+  actions: { flexDirection: 'row', marginTop: spacing.xxl, gap: spacing.md },
+  skipBtn: { flex: 1, height: 52, alignItems: 'center', justifyContent: 'center', borderRadius: radius.lg, backgroundColor: colors.surface },
+  skipText: { fontSize: 15, fontWeight: '600', color: colors.textSecondary },
+  saveBtn: { flex: 2, flexDirection: 'row', height: 52, alignItems: 'center', justifyContent: 'center', borderRadius: radius.lg, backgroundColor: colors.primary },
+  saveText: { fontSize: 15, fontWeight: '600', color: colors.textInverse, letterSpacing: 0.2 },
 });
