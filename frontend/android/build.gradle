@@ -16,9 +16,7 @@ allprojects {
   repositories {
     google()
     mavenCentral()
-    gradlePluginPortal()
-    maven { url 'https://jitpack.io' }
-    maven { url 'https://maven.aliyun.com/repository/public' } // mirror
+    maven { url 'https://www.jitpack.io' }
   }
 }
 
