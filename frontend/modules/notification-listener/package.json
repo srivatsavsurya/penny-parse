@@ -1,0 +1,14 @@
+{
+  "name": "private-ledger-notification-listener",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "private": true,
+  "expoModuleConfig": "./expo-module.config.json",
+  "expo": {
+    "autolinking": {
+      "android": {
+        "modulesClassNames": ["expo.modules.notificationlistener.NotificationListenerModule"]
+      }
+    }
+  }
+}

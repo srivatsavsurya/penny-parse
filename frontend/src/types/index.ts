@@ -1,15 +1,4 @@
-export type CategoryType =
-  | 'food'
-  | 'travel'
-  | 'shopping'
-  | 'bills'
-  | 'entertainment'
-  | 'groceries'
-  | 'health'
-  | 'education'
-  | 'transfer'
-  | 'income'
-  | 'others';
+export type CategoryType = string; // free-form so users can add custom
 
 export interface Transaction {
   id: string;
@@ -22,7 +11,7 @@ export interface Transaction {
   isCredit: boolean;
   notes?: string;
   tags?: string[];
-  source: 'sms' | 'manual';
+  source: 'sms' | 'manual' | 'notification';
   upiRef?: string;
   bankAccount?: string;
   createdAt: number;
@@ -39,7 +28,7 @@ export interface Account {
   balance: number;
   last4?: string;
   icon?: string;
-  senderIds?: string[]; // for auto-assign from SMS sender
+  senderIds?: string[];
 }
 
 export interface Budget {
@@ -55,7 +44,11 @@ export interface CategoryInfo {
   icon: string;
   color: string;
   bgColor: string;
+  isCustom?: boolean;
+  type?: 'expense' | 'income' | 'transfer';
 }
+
+export type ThemeMode = 'light' | 'dark' | 'system';
 
 export interface AppSettings {
   enableAiInsights: boolean;
@@ -64,6 +57,9 @@ export interface AppSettings {
   openRouterApiKey?: string;
   aiModel: string;
   firstRun: boolean;
+  hasOnboarded: boolean;
+  hideBalances: boolean;
+  themeMode: ThemeMode;
 }
 
 export interface ParsedSMS {
@@ -83,4 +79,13 @@ export interface SmartRule {
   keywords: string[];
   category: CategoryType;
   enabled: boolean;
+}
+
+export type DateRangeKey = 'today' | 'week' | 'month' | 'quarter' | 'year' | 'all' | 'custom';
+
+export interface DateRange {
+  key: DateRangeKey;
+  label: string;
+  start?: string;
+  end?: string;
 }

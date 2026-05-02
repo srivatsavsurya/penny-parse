@@ -20,13 +20,12 @@
       "edgeToEdgeEnabled": true,
       "package": "com.privateledger.app",
       "permissions": [
-        "android.permission.RECEIVE_SMS",
-        "android.permission.READ_SMS",
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.WAKE_LOCK",
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.FOREGROUND_SERVICE",
-        "android.permission.VIBRATE"
+        "android.permission.VIBRATE",
+        "android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
       ]
     },
     "web": {
@@ -53,15 +52,17 @@
           "sounds": []
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true
     },
+    "owner": "caneva32",
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "bf7f139d-64ae-41ee-a5d1-06dd47e8ffcd"
+        "projectId": "a2b645cc-e9f4-44cd-8b02-acc1ec02fbe7"
       }
     }
   }
