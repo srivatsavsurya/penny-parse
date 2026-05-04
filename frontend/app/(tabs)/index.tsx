@@ -18,7 +18,7 @@ import { getAccountIcon, BANK_COLORS } from '../../src/utils/accounts';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { transactions, accounts, settings, simulateTransaction, seedDemoData, addAccount, updateSettings } = useApp();
+  const { transactions, accounts, settings, simulateTransaction, seedDemoData, addAccount, updateSettings, openManualEntry } = useApp();
   const { colors, isDark } = useTheme();
   const [rangeKey, setRangeKey] = useState<DateRangeKey>('month');
   const [showRangePicker, setShowRangePicker] = useState(false);
@@ -216,6 +216,11 @@ export default function HomeScreen() {
         onClose={() => setShowAddAccount(false)}
         onSave={(data) => { addAccount(data); setShowAddAccount(false); }}
       />
+
+      {/* Floating Add Transaction button */}
+      <TouchableOpacity style={[styles.fab, { backgroundColor: colors.accent }]} onPress={() => openManualEntry(true)} activeOpacity={0.85}>
+        <Ionicons name="add" size={28} color="#fff" />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -371,6 +376,7 @@ const makeStyles = (c: any) => StyleSheet.create({
   demoScroll: { gap: 8 },
   demoChip: { paddingVertical: 6, paddingHorizontal: 12, backgroundColor: c.surface, borderRadius: radius.full, marginRight: 6 },
   demoChipText: { fontSize: 12, fontWeight: '600', color: c.textPrimary },
+  fab: { position: 'absolute', right: 20, bottom: 20, width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', ...Platform.select({ ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.18, shadowRadius: 12 }, android: { elevation: 8 } }) },
 });
 
 const makeSheetStyles = (c: any) => StyleSheet.create({

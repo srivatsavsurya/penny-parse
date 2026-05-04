@@ -53,16 +53,17 @@
         }
       ],
       "expo-web-browser",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-intent-launcher",
+      "./plugins/with-notification-listener.js"
     ],
     "experiments": {
       "typedRoutes": true
     },
-    "owner": "caneva32",
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "a2b645cc-e9f4-44cd-8b02-acc1ec02fbe7"
+        "projectId": "bfd34cb2-fc4c-41b4-8c0a-b103cf77b2e9"
       }
     }
   }

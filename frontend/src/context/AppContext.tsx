@@ -39,6 +39,7 @@ interface AppContextType {
   simulateTransaction: (message: string, senderId?: string) => void;
   triggerParsedSMS: (parsed: ParsedSMS) => void;
   openTransactionEditor: (tx: Transaction) => void;
+  openManualEntry: (isDebit?: boolean) => void;
 
   // Accounts
   addAccount: (account: Omit<Account, 'id'>) => void;
@@ -148,6 +149,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       isEdit: true,
     });
   }, []);
+
+  const openManualEntry: AppContextType['openManualEntry'] = useCallback((isDebit = true) => {
+    const now = new Date();
+    setPendingTransaction({
+      amount: 0,
+      merchant: '',
+      isDebit,
+      time: now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+      date: format(now, 'yyyy-MM-dd'),
+      accountId: accounts[0]?.id,
+      category: isDebit ? 'others' : 'income',
+    });
+  }, [accounts]);
 
   const confirmTransaction: AppContextType['confirmTransaction'] = useCallback((data) => {
     if (!pendingTransaction) return;
@@ -259,7 +273,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     () => ({
       transactions, accounts, budgets, settings, customCategories, pendingTransaction, ready,
       addTransaction, updateTransaction, deleteTransaction,
-      confirmTransaction, dismissTransaction, simulateTransaction, triggerParsedSMS, openTransactionEditor,
+      confirmTransaction, dismissTransaction, simulateTransaction, triggerParsedSMS, openTransactionEditor, openManualEntry,
       addAccount, updateAccount, deleteAccount,
       addCustomCategory, updateCustomCategory, deleteCustomCategory,
       setBudget, deleteBudget,
@@ -268,7 +282,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     [
       transactions, accounts, budgets, settings, customCategories, pendingTransaction, ready,
       addTransaction, updateTransaction, deleteTransaction,
-      confirmTransaction, dismissTransaction, simulateTransaction, triggerParsedSMS, openTransactionEditor,
+      confirmTransaction, dismissTransaction, simulateTransaction, triggerParsedSMS, openTransactionEditor, openManualEntry,
       addAccount, updateAccount, deleteAccount,
       addCustomCategory, updateCustomCategory, deleteCustomCategory,
       setBudget, deleteBudget,

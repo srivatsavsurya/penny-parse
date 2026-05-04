@@ -79,17 +79,31 @@ export const TransactionEditor: React.FC = () => {
   if (!visible || !pendingTransaction) return null;
 
   const isEdit = !!pendingTransaction.isEdit;
+  const isManual = !pendingTransaction.isEdit && (pendingTransaction.merchant === '' || pendingTransaction.amount === 0);
   const isDebit = pendingTransaction.isDebit;
   const amountColor = isDebit ? colors.textPrimary : colors.success;
   const dotColor = isDebit ? colors.error : colors.success;
 
+  // For manual entries: editable amount + merchant
+  const [editAmount, setEditAmount] = useState('');
+  const [editMerchant, setEditMerchant] = useState('');
+  useEffect(() => {
+    setEditAmount(pendingTransaction?.amount ? String(pendingTransaction.amount) : '');
+    setEditMerchant(pendingTransaction?.merchant || '');
+  }, [pendingTransaction?.id, visible]);
+
   const handleSave = () => {
+    const finalAmount = isManual || isEdit ? parseFloat(editAmount) || 0 : pendingTransaction.amount;
+    const finalMerchant = isManual || isEdit ? editMerchant.trim() || pendingTransaction.merchant : pendingTransaction.merchant;
+    if (finalAmount <= 0) return;
     close(() => confirmTransaction({
       category: selectedCat,
       accountId,
       notes: notes.trim() || undefined,
       date,
       time,
+      amount: finalAmount,
+      merchant: finalMerchant || 'Unknown',
     }));
   };
 
@@ -133,11 +147,35 @@ export const TransactionEditor: React.FC = () => {
               ) : null}
             </View>
 
-            {/* Amount — uniform typography */}
-            <Text style={[styles.amountText, { color: amountColor }]} numberOfLines={1}>
-              {(isDebit ? '\u2212' : '+') + '\u20B9' + formatAmt(pendingTransaction.amount)}
-            </Text>
-            <Text style={styles.merchant} numberOfLines={1}>{pendingTransaction.merchant}</Text>
+            {/* Amount — editable for manual + edit, display-only for SMS captures */}
+            {(isManual || isEdit) ? (
+              <View style={styles.editAmountRow}>
+                <Text style={[styles.amountText, { color: amountColor }]}>{(isDebit ? '\u2212' : '+') + '\u20B9'}</Text>
+                <TextInput
+                  style={[styles.amountText, styles.amountInput, { color: amountColor }]}
+                  value={editAmount}
+                  onChangeText={setEditAmount}
+                  placeholder="0"
+                  placeholderTextColor={colors.textTertiary}
+                  keyboardType="numeric"
+                />
+              </View>
+            ) : (
+              <Text style={[styles.amountText, { color: amountColor }]} numberOfLines={1}>
+                {(isDebit ? '\u2212' : '+') + '\u20B9' + formatAmt(pendingTransaction.amount)}
+              </Text>
+            )}
+            {(isManual || isEdit) ? (
+              <TextInput
+                style={[styles.merchant, styles.merchantInput, { color: colors.textPrimary }]}
+                value={editMerchant}
+                onChangeText={setEditMerchant}
+                placeholder="Who did you pay?"
+                placeholderTextColor={colors.textTertiary}
+              />
+            ) : (
+              <Text style={styles.merchant} numberOfLines={1}>{pendingTransaction.merchant}</Text>
+            )}
 
             <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               {/* Date & Time */}
@@ -271,6 +309,9 @@ const makeStyles = (c: any, isDark: boolean) => StyleSheet.create({
   typeLabel: { ...typography.caption, color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.8, flex: 1 },
   deleteIcon: { padding: 6, borderRadius: 8 },
   amountText: { fontSize: 38, fontWeight: '700', letterSpacing: -0.8, lineHeight: 46, marginBottom: 2 },
+  editAmountRow: { flexDirection: 'row', alignItems: 'baseline', marginBottom: 2 },
+  amountInput: { flex: 1, padding: 0, ...(Platform.OS === 'web' ? { outlineStyle: 'none' as any, outlineWidth: 0 as any } : {}) },
+  merchantInput: { padding: 0, borderBottomWidth: 1, borderBottomColor: c.borderLight, paddingBottom: 6, ...(Platform.OS === 'web' ? { outlineStyle: 'none' as any, outlineWidth: 0 as any } : {}) },
   merchant: { fontSize: 17, fontWeight: '500', color: c.textPrimary, marginBottom: spacing.lg },
   metaRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
   metaChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, backgroundColor: c.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, borderColor: c.borderLight },
