@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
-import { Transaction, CategoryType, AppSettings, Account, Budget, ParsedSMS, CategoryInfo } from '../types';
+import { Transaction, CategoryType, AppSettings, Account, Budget, ParsedSMS, CategoryInfo, MerchantMemory, NeedWantTag } from '../types';
 import { storage } from '../utils/storage';
-import { parseUPIMessage, suggestCategory } from '../utils/upiParser';
+import { parseUPIMessage, suggestCategory, merchantKey, parseWithLLM } from '../utils/upiParser';
 import { findAccountBySender } from '../utils/accounts';
 import { format } from 'date-fns';
 
 export interface PendingTx {
-  id?: string; // present when editing existing
+  id?: string;
   amount: number;
   merchant: string;
   isDebit: boolean;
@@ -17,6 +17,8 @@ export interface PendingTx {
   bankAccount?: string;
   notes?: string;
   category?: CategoryType;
+  tag?: NeedWantTag;
+  parseConfidence?: number;
   isEdit?: boolean;
 }
 
@@ -26,6 +28,7 @@ interface AppContextType {
   budgets: Budget[];
   settings: AppSettings;
   customCategories: CategoryInfo[];
+  merchantMemory: MerchantMemory;
   pendingTransaction: PendingTx | null;
   ready: boolean;
 
@@ -34,12 +37,13 @@ interface AppContextType {
   deleteTransaction: (id: string) => void;
 
   // Banner / Pending flow
-  confirmTransaction: (data: { category: CategoryType; accountId?: string; notes?: string; date?: string; time?: string; amount?: number; merchant?: string }) => void;
+  confirmTransaction: (data: { category: CategoryType; tag?: NeedWantTag; accountId?: string; notes?: string; date?: string; time?: string; amount?: number; merchant?: string }) => void;
   dismissTransaction: () => void;
   simulateTransaction: (message: string, senderId?: string) => void;
   triggerParsedSMS: (parsed: ParsedSMS) => void;
   openTransactionEditor: (tx: Transaction) => void;
   openManualEntry: (isDebit?: boolean) => void;
+  parseRawSMS: (raw: string) => Promise<boolean>;
 
   // Accounts
   addAccount: (account: Omit<Account, 'id'>) => void;
@@ -68,8 +72,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [customCategories, setCustomCategories] = useState<CategoryInfo[]>([]);
+  const [merchantMemory, setMerchantMemory] = useState<MerchantMemory>({});
   const [settings, setSettings] = useState<AppSettings>({
     enableAiInsights: false,
+    enableLlmFallback: false,
     autoCategorizeSms: true,
     currency: 'INR',
     aiModel: 'google/gemini-2.0-flash-exp:free',
@@ -83,18 +89,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   useEffect(() => {
     (async () => {
-      const [txs, accs, buds, sets, cats] = await Promise.all([
+      const [txs, accs, buds, sets, cats, mem] = await Promise.all([
         storage.loadTransactions(),
         storage.loadAccounts(),
         storage.loadBudgets(),
         storage.loadSettings(),
         storage.loadCustomCategories(),
+        storage.loadMerchantMemory(),
       ]);
       setTransactions(txs);
       setAccounts(accs);
       setBudgets(buds);
       setSettings(sets);
       setCustomCategories(cats);
+      setMerchantMemory(mem);
       setReady(true);
     })();
   }, []);
@@ -104,6 +112,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const persistBudgets = (list: Budget[]) => { setBudgets(list); storage.saveBudgets(list); };
   const persistSettings = (s: AppSettings) => { setSettings(s); storage.saveSettings(s); };
   const persistCategories = (list: CategoryInfo[]) => { setCustomCategories(list); storage.saveCustomCategories(list); };
+  const persistMerchantMemory = (m: MerchantMemory) => { setMerchantMemory(m); storage.saveMerchantMemory(m); };
+
+  const learnMerchant = (merchant: string, category: CategoryType, tag?: NeedWantTag) => {
+    const k = merchantKey(merchant);
+    if (!k) return;
+    const prev = merchantMemory[k];
+    persistMerchantMemory({
+      ...merchantMemory,
+      [k]: {
+        category,
+        tag: tag || prev?.tag,
+        count: (prev?.count || 0) + 1,
+      },
+    });
+  };
+
+  const lookupMerchant = (merchant: string) => {
+    const k = merchantKey(merchant);
+    return merchantMemory[k];
+  };
 
   const addTransaction: AppContextType['addTransaction'] = useCallback((tx) => {
     const newTx: Transaction = { ...tx, id: id(), createdAt: Date.now() };
@@ -120,6 +148,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const triggerParsedSMS: AppContextType['triggerParsedSMS'] = useCallback((parsed) => {
     const acc = findAccountBySender(accounts, parsed.senderId || parsed.bank);
+    const memory = lookupMerchant(parsed.merchant);
+    // Merchant memory wins over keyword-based suggestion
+    const suggestedCat = memory?.category || (suggestCategory(parsed.merchant, !parsed.isDebit) as CategoryType);
     setPendingTransaction({
       amount: parsed.amount,
       merchant: parsed.merchant,
@@ -129,9 +160,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       accountId: acc?.id,
       upiRef: parsed.upiRef,
       bankAccount: parsed.bankAccount,
-      category: suggestCategory(parsed.merchant, !parsed.isDebit) as CategoryType,
+      category: suggestedCat,
+      tag: memory?.tag || 'unset',
+      parseConfidence: parsed.confidence,
     });
-  }, [accounts]);
+  }, [accounts, merchantMemory]);
+
+  const parseRawSMS: AppContextType['parseRawSMS'] = useCallback(async (raw: string) => {
+    // Layer 1: template regex
+    const local = parseUPIMessage(raw);
+    if (local) { triggerParsedSMS(local); return true; }
+    // Layer 2: LLM fallback (opt-in)
+    if (settings.enableLlmFallback && settings.openRouterApiKey) {
+      const llm = await parseWithLLM(raw, settings.openRouterApiKey, settings.aiModel);
+      if (llm) { triggerParsedSMS(llm); return true; }
+    }
+    return false;
+  }, [settings, triggerParsedSMS]);
 
   const openTransactionEditor: AppContextType['openTransactionEditor'] = useCallback((tx) => {
     setPendingTransaction({
@@ -146,6 +191,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       bankAccount: tx.bankAccount,
       notes: tx.notes,
       category: tx.category,
+      tag: tx.tag || 'unset',
       isEdit: true,
     });
   }, []);
@@ -160,6 +206,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       date: format(now, 'yyyy-MM-dd'),
       accountId: accounts[0]?.id,
       category: isDebit ? 'others' : 'income',
+      tag: 'unset',
     });
   }, [accounts]);
 
@@ -170,9 +217,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const finalMerchant = data.merchant ?? pendingTransaction.merchant;
     const finalDate = data.date || pendingTransaction.date || format(new Date(), 'yyyy-MM-dd');
     const finalTime = data.time || pendingTransaction.time;
+    const finalTag: NeedWantTag = data.tag || pendingTransaction.tag || 'unset';
+
+    // Learn from the user's choice for future auto-categorization
+    if (finalMerchant) learnMerchant(finalMerchant, data.category, finalTag);
 
     if (pendingTransaction.isEdit && pendingTransaction.id) {
-      // Update existing
       const updated = transactions.map((t) =>
         t.id === pendingTransaction.id
           ? {
@@ -184,12 +234,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               date: finalDate,
               time: finalTime,
               notes: data.notes,
+              tag: finalTag,
             }
           : t
       );
       persistTransactions(updated);
     } else {
-      // New
       const newTx: Transaction = {
         id: id(),
         amount: finalAmount,
@@ -203,12 +253,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         upiRef: pendingTransaction.upiRef,
         bankAccount: pendingTransaction.bankAccount,
         notes: data.notes,
+        tag: finalTag,
+        parseConfidence: pendingTransaction.parseConfidence,
         createdAt: Date.now(),
       };
       persistTransactions([newTx, ...transactions]);
     }
     setPendingTransaction(null);
-  }, [pendingTransaction, transactions]);
+  }, [pendingTransaction, transactions, merchantMemory]);
 
   const dismissTransaction = useCallback(() => setPendingTransaction(null), []);
 
@@ -271,18 +323,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const value = useMemo<AppContextType>(
     () => ({
-      transactions, accounts, budgets, settings, customCategories, pendingTransaction, ready,
+      transactions, accounts, budgets, settings, customCategories, merchantMemory, pendingTransaction, ready,
       addTransaction, updateTransaction, deleteTransaction,
-      confirmTransaction, dismissTransaction, simulateTransaction, triggerParsedSMS, openTransactionEditor, openManualEntry,
+      confirmTransaction, dismissTransaction, simulateTransaction, triggerParsedSMS, openTransactionEditor, openManualEntry, parseRawSMS,
       addAccount, updateAccount, deleteAccount,
       addCustomCategory, updateCustomCategory, deleteCustomCategory,
       setBudget, deleteBudget,
       updateSettings, clearData, seedDemoData,
     }),
     [
-      transactions, accounts, budgets, settings, customCategories, pendingTransaction, ready,
+      transactions, accounts, budgets, settings, customCategories, merchantMemory, pendingTransaction, ready,
       addTransaction, updateTransaction, deleteTransaction,
-      confirmTransaction, dismissTransaction, simulateTransaction, triggerParsedSMS, openTransactionEditor, openManualEntry,
+      confirmTransaction, dismissTransaction, simulateTransaction, triggerParsedSMS, openTransactionEditor, openManualEntry, parseRawSMS,
       addAccount, updateAccount, deleteAccount,
       addCustomCategory, updateCustomCategory, deleteCustomCategory,
       setBudget, deleteBudget,

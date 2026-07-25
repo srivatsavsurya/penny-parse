@@ -1,17 +1,21 @@
-export type CategoryType = string; // free-form so users can add custom
+export type CategoryType = string;
+
+export type NeedWantTag = 'need' | 'want' | 'investment' | 'business' | 'unset';
 
 export interface Transaction {
   id: string;
   amount: number;
   merchant: string;
   category: CategoryType;
+  tag?: NeedWantTag;
+  parseConfidence?: number;
   accountId?: string;
-  date: string; // yyyy-MM-dd
+  date: string;
   time: string;
   isCredit: boolean;
   notes?: string;
   tags?: string[];
-  source: 'sms' | 'manual' | 'notification';
+  source: 'sms' | 'manual' | 'notification' | 'llm';
   upiRef?: string;
   bankAccount?: string;
   createdAt: number;
@@ -52,6 +56,7 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 
 export interface AppSettings {
   enableAiInsights: boolean;
+  enableLlmFallback: boolean;
   autoCategorizeSms: boolean;
   currency: string;
   openRouterApiKey?: string;
@@ -72,6 +77,7 @@ export interface ParsedSMS {
   time: string;
   rawMessage: string;
   senderId?: string;
+  confidence?: number;
 }
 
 export interface SmartRule {
@@ -88,4 +94,12 @@ export interface DateRange {
   label: string;
   start?: string;
   end?: string;
+}
+
+export interface MerchantMemory {
+  [merchantKey: string]: {
+    category: CategoryType;
+    tag?: NeedWantTag;
+    count: number;
+  };
 }

@@ -2,26 +2,25 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Platform, TextInput } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useApp } from '../../src/context/AppContext';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { TransactionItem } from '../../src/components/TransactionItem';
 import { CategoryDonut } from '../../src/components/CategoryDonut';
 import { CashFlowCard } from '../../src/components/CashFlowCard';
+import { BalanceHero } from '../../src/components/BalanceHero';
 import { spacing, radius, typography } from '../../src/theme/design';
-import { formatCompact, todayISO } from '../../src/utils/formatters';
+import { formatCompact } from '../../src/utils/formatters';
 import { TEST_MESSAGES } from '../../src/utils/upiParser';
 import { getDateRange, isInRange, RANGE_OPTIONS } from '../../src/utils/dateRange';
 import { DateRangeKey, AccountType } from '../../src/types';
-import { getAccountIcon, BANK_COLORS } from '../../src/utils/accounts';
+import { getAccountIcon } from '../../src/utils/accounts';
 
 export default function HomeScreen() {
   const router = useRouter();
   const { transactions, accounts, settings, simulateTransaction, seedDemoData, addAccount, updateSettings, openManualEntry } = useApp();
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const [rangeKey, setRangeKey] = useState<DateRangeKey>('month');
-  const [showRangePicker, setShowRangePicker] = useState(false);
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [showDemoRow, setShowDemoRow] = useState(true);
 
@@ -50,10 +49,35 @@ export default function HomeScreen() {
     [accountBalances]
   );
 
+  // Balance trend: current period net vs previous same-length period net
+  const balanceTrendPct = useMemo<number | null>(() => {
+    if (rangeKey === 'all') return null;
+    try {
+      const startISO = range.start;
+      const endISO = range.end;
+      if (!startISO || !endISO) return null;
+      const start = new Date(startISO + 'T00:00:00');
+      const end = new Date(endISO + 'T23:59:59');
+      const lenMs = end.getTime() - start.getTime();
+      const prevEnd = new Date(start.getTime() - 1);
+      const prevStart = new Date(prevEnd.getTime() - lenMs);
+      let curNet = 0, prvNet = 0;
+      transactions.forEach((t) => {
+        const d = new Date(t.date + 'T00:00:00');
+        const val = t.isCredit ? t.amount : -t.amount;
+        if (d >= start && d <= end) curNet += val;
+        else if (d >= prevStart && d <= prevEnd) prvNet += val;
+      });
+      if (prvNet === 0) return curNet === 0 ? 0 : null;
+      return ((curNet - prvNet) / Math.abs(prvNet)) * 100;
+    } catch {
+      return null;
+    }
+  }, [transactions, range, rangeKey]);
+
   const recent = filtered.slice(0, 5);
   const hidden = settings.hideBalances;
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const maskAmount = (v: string) => (hidden ? '\u2022\u2022\u2022\u2022\u2022' : v);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -61,46 +85,31 @@ export default function HomeScreen() {
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           {/* Header */}
           <View style={styles.topRow}>
-            <View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.helloSmall}>Welcome back</Text>
               <Text style={styles.hello}>Private Ledger</Text>
-              <Text style={styles.subtitle}>{range.label}</Text>
             </View>
             <TouchableOpacity
-              style={styles.eyeBtn}
-              onPress={() => updateSettings({ hideBalances: !hidden })}
+              style={styles.iconBtn}
+              onPress={() => router.push('/settings')}
               activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Ionicons name={hidden ? 'eye-off' : 'eye'} size={20} color={colors.textPrimary} />
+              <Ionicons name="settings-outline" size={20} color={colors.textPrimary} />
             </TouchableOpacity>
           </View>
 
-          {/* Total Balance with gradient */}
-          <View style={styles.balanceWrap}>
-            <LinearGradient
-              colors={[colors.gradientStart, colors.gradientEnd]}
-              style={StyleSheet.absoluteFill}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-            />
-            <View style={styles.balanceInner}>
-              <Text style={styles.balanceLabel}>TOTAL BALANCE</Text>
-              <Text style={styles.balanceValue} numberOfLines={1}>
-                {hidden ? '\u2022\u2022\u2022\u2022\u2022\u2022' : '\u20b9' + formatCompact(totalBalance)}
-              </Text>
-              <View style={styles.balanceRow}>
-                <View style={styles.balanceStat}>
-                  <View style={[styles.statDot, { backgroundColor: 'rgba(255,255,255,0.85)' }]} />
-                  <Text style={styles.statLabel}>Income</Text>
-                  <Text style={styles.statValue}>{maskAmount('\u20b9' + formatCompact(totals.income))}</Text>
-                </View>
-                <View style={styles.balanceDivider} />
-                <View style={styles.balanceStat}>
-                  <View style={[styles.statDot, { backgroundColor: 'rgba(255,255,255,0.85)' }]} />
-                  <Text style={styles.statLabel}>Expense</Text>
-                  <Text style={styles.statValue}>{maskAmount('\u20b9' + formatCompact(totals.expense))}</Text>
-                </View>
-              </View>
-            </View>
-          </View>
+          {/* Total Balance – premium hero */}
+          <BalanceHero
+            balance={totalBalance}
+            income={totals.income}
+            expense={totals.expense}
+            hide={hidden}
+            onToggleHide={() => updateSettings({ hideBalances: !hidden })}
+            trendPct={balanceTrendPct}
+            periodLabel={range.label}
+          />
+          <View style={{ height: spacing.lg }} />
 
           {/* Date range chips */}
           <View style={styles.rangeRow}>
@@ -146,9 +155,9 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </ScrollView>
 
-          {/* Cash Flow */}
+          {/* Cash Flow — independent dynamic range */}
           <View style={{ marginTop: spacing.xl }}>
-            <CashFlowCard transactions={filtered} hide={hidden} title={range.label} />
+            <CashFlowCard transactions={transactions} hide={hidden} />
           </View>
 
           {/* Donut */}
@@ -297,7 +306,6 @@ const AddAccountSheet: React.FC<{ visible: boolean; onClose: () => void; onSave:
   );
 };
 
-import { TextInput as _RNTextInput } from 'react-native';
 const SheetField: React.FC<{ label: string; value: string; onChange: (v: string) => void; placeholder?: string; keyboardType?: any }> = ({ label, value, onChange, placeholder, keyboardType }) => {
   const { colors } = useTheme();
   return (
@@ -330,8 +338,10 @@ const makeStyles = (c: any) => StyleSheet.create({
   container: { flex: 1, backgroundColor: c.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl },
   topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.lg },
+  helloSmall: { ...typography.small, color: c.textSecondary, fontWeight: '500' },
   hello: { ...typography.title, color: c.textPrimary },
   subtitle: { ...typography.small, color: c.textSecondary, marginTop: 2 },
+  iconBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: c.surface, borderWidth: 1, borderColor: c.borderLight },
   eyeBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: c.surface, borderWidth: 1, borderColor: c.borderLight },
   balanceWrap: { borderRadius: radius.xxl, overflow: 'hidden', marginBottom: spacing.lg, ...Platform.select({ ios: { shadowColor: c.gradientStart, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 24 }, android: { elevation: 6 } }) },
   balanceInner: { padding: spacing.xl },

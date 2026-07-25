@@ -11,8 +11,8 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useApp, PendingTx } from '../context/AppContext';
 import { useTheme } from '../theme/ThemeProvider';
-import { CategoryType } from '../types';
-import { getAllCategories, getCategoryInfo } from '../utils/categories';
+import { CategoryType, NeedWantTag } from '../types';
+import { getAllCategories, getCategoryInfo, TAGS } from '../utils/categories';
 import { spacing, radius, typography } from '../theme/design';
 import { format, parseISO } from 'date-fns';
 
@@ -29,6 +29,7 @@ export const TransactionEditor: React.FC = () => {
 
   const visible = !!pendingTransaction;
   const [selectedCat, setSelectedCat] = useState<CategoryType>('others');
+  const [selectedTag, setSelectedTag] = useState<NeedWantTag>('unset');
   const [accountId, setAccountId] = useState<string | undefined>();
   const [notes, setNotes] = useState('');
   const [date, setDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
@@ -43,6 +44,7 @@ export const TransactionEditor: React.FC = () => {
   useEffect(() => {
     if (pendingTransaction) {
       setSelectedCat(pendingTransaction.category || (pendingTransaction.isDebit ? 'others' : 'income'));
+      setSelectedTag(pendingTransaction.tag || 'unset');
       setAccountId(pendingTransaction.accountId);
       setNotes(pendingTransaction.notes || '');
       setDate(pendingTransaction.date || format(new Date(), 'yyyy-MM-dd'));
@@ -76,6 +78,14 @@ export const TransactionEditor: React.FC = () => {
   const visibleCats = pendingTransaction?.isDebit ? expenseCats : incomeCats;
   const styles = useMemo(() => makeStyles(colors, isDark), [colors, isDark]);
 
+  // For manual entries: editable amount + merchant (must be declared BEFORE conditional return)
+  const [editAmount, setEditAmount] = useState('');
+  const [editMerchant, setEditMerchant] = useState('');
+  useEffect(() => {
+    setEditAmount(pendingTransaction?.amount ? String(pendingTransaction.amount) : '');
+    setEditMerchant(pendingTransaction?.merchant || '');
+  }, [pendingTransaction?.id, visible]);
+
   if (!visible || !pendingTransaction) return null;
 
   const isEdit = !!pendingTransaction.isEdit;
@@ -84,20 +94,13 @@ export const TransactionEditor: React.FC = () => {
   const amountColor = isDebit ? colors.textPrimary : colors.success;
   const dotColor = isDebit ? colors.error : colors.success;
 
-  // For manual entries: editable amount + merchant
-  const [editAmount, setEditAmount] = useState('');
-  const [editMerchant, setEditMerchant] = useState('');
-  useEffect(() => {
-    setEditAmount(pendingTransaction?.amount ? String(pendingTransaction.amount) : '');
-    setEditMerchant(pendingTransaction?.merchant || '');
-  }, [pendingTransaction?.id, visible]);
-
   const handleSave = () => {
     const finalAmount = isManual || isEdit ? parseFloat(editAmount) || 0 : pendingTransaction.amount;
     const finalMerchant = isManual || isEdit ? editMerchant.trim() || pendingTransaction.merchant : pendingTransaction.merchant;
     if (finalAmount <= 0) return;
     close(() => confirmTransaction({
       category: selectedCat,
+      tag: selectedTag,
       accountId,
       notes: notes.trim() || undefined,
       date,
@@ -252,6 +255,28 @@ export const TransactionEditor: React.FC = () => {
                 </ScrollView>
               </View>
 
+              {/* Need / Want / Investment / Business tag */}
+              {isDebit && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>Type</Text>
+                  <View style={styles.tagRow}>
+                    {TAGS.map((t) => {
+                      const sel = selectedTag === t.id;
+                      return (
+                        <TouchableOpacity
+                          key={t.id}
+                          onPress={() => setSelectedTag(sel ? 'unset' : t.id)}
+                          style={[styles.tagChip, sel && { backgroundColor: t.color, borderColor: t.color }]}
+                        >
+                          <Ionicons name={t.icon as any} size={14} color={sel ? '#fff' : t.color} />
+                          <Text style={[styles.tagText, sel && styles.tagTextSelected]}>{t.name}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+
               {/* Notes — always editable */}
               <View style={styles.section}>
                 <Text style={styles.sectionLabel}>Note</Text>
@@ -323,6 +348,10 @@ const makeStyles = (c: any, isDark: boolean) => StyleSheet.create({
   chip: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 12, backgroundColor: c.surfaceSecondary, borderRadius: radius.full, borderWidth: 1, borderColor: c.borderLight },
   chipText: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginLeft: 6 },
   chipSelected: { color: '#fff' },
+  tagRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
+  tagChip: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 14, backgroundColor: c.surfaceSecondary, borderRadius: radius.full, borderWidth: 1, borderColor: c.borderLight, gap: 6 },
+  tagText: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
+  tagTextSelected: { color: '#fff' },
   accChip: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 12, backgroundColor: c.surfaceSecondary, borderRadius: radius.full, borderWidth: 1, borderColor: c.borderLight, gap: 6 },
   accDot: { width: 8, height: 8, borderRadius: 4 },
   accChipText: { fontSize: 13, fontWeight: '600', color: c.textSecondary },

@@ -101,3 +101,94 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: |
+  Building "The Private Ledger" — an Android-first privacy-focused personal finance app that
+  automatically captures transactions from bank/UPI SMS notifications. Requires 3-layer parsing
+  (templates → LLM fallback → user teaching), premium UI with cashflow/donut/analytics,
+  Need/Want/Investment tagging, and BYOK AI processing (local-first storage).
+
+frontend:
+  - task: "Premium Total Balance Hero (gradient + trend indicator)"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/BalanceHero.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: |
+            Replaced the flat balance card with a premium hero: 3-stop LinearGradient
+            (blue→indigo→violet) with two ambient orb overlays (top-right + bottom-left) for
+            a soft mesh feel, a subtle top-to-bottom sheen for depth, larger ₹ typography
+            (44pt), inline period label chip ("THIS MONTH"), directional icon-backed
+            Income/Expense stats, and a "% vs previous" trend pill (null-safe: shows "New
+            activity" via sparkles icon when no previous data). Verified via screenshot with
+            demo data — renders ₹77.4K balance with orb glow.
+
+  - task: "Dynamic date range for Cash Flow card (inline segmented + sparkline)"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/CashFlowCard.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: |
+            Rebuilt CashFlowCard as a self-contained widget with its own 7D/30D/90D/6M/1Y
+            segmented control (independent of the page-level filter). Card now:
+            • filters all transactions internally with date-fns
+            • computes previous-period totals for a "% vs prev" delta
+            • renders a compact SVG sparkline (react-native-svg Polyline) of net cashflow
+              buckets (auto-samples into ≤30 buckets), color-coded green/red based on net
+            • draws dashed zero-baseline for context
+            • shows Income/Expense progress bars and a colored "Net saved / Net spent" pill
+            • uses expo-haptics selectionAsync on range change (native only)
+            Verified via screenshots at 30D and 90D — sparkline rerenders, "Last N days" label
+            updates.
+
+  - task: "Home top row cleanup (Welcome back header + settings shortcut)"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/(tabs)/index.tsx"
+    stuck_count: 0
+    priority: "low"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: |
+            Moved eye/hide toggle into the BalanceHero (right side, glassy pill). Top row
+            now shows a two-line "Welcome back / Private Ledger" title and a settings
+            shortcut icon that routes to /settings. Removed duplicated maskAmount helper
+            and unused LinearGradient/isDark/showRangePicker code.
+
+metadata:
+  created_by: "main_agent"
+  version: "1.1"
+  test_sequence: 0
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Premium Total Balance Hero"
+    - "Dynamic date range for Cash Flow card"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "sequential"
+
+agent_communication:
+    - agent: "main"
+      message: |
+        Completed P1 UI polish requested by user:
+        1. Premium gradient hero for Total Balance with ambient orbs, trend pill, and
+           icon-backed income/expense sub-stats.
+        2. Dynamic 7D/30D/90D/6M/1Y range chips inside the Cash Flow card (independent
+           of page-level range), plus SVG sparkline of net cashflow trend and previous-
+           period % comparison.
+        UI-only visual changes verified via screenshot. No backend touched. Native SMS
+        listener config plugin unchanged (still pending user's EAS build verification).

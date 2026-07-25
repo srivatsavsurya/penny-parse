@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Transaction, Account, Budget, AppSettings, CategoryInfo } from '../types';
+import { Transaction, Account, Budget, AppSettings, CategoryInfo, MerchantMemory } from '../types';
 import { DEFAULT_ACCOUNTS } from './accounts';
 
 const KEYS = {
@@ -8,10 +8,12 @@ const KEYS = {
   BUDGETS: '@pl_budgets_v3',
   SETTINGS: '@pl_settings_v3',
   CATEGORIES: '@pl_custom_categories_v3',
+  MERCHANT_MEMORY: '@pl_merchant_memory_v3',
 };
 
 const DEFAULT_SETTINGS: AppSettings = {
   enableAiInsights: false,
+  enableLlmFallback: false,
   autoCategorizeSms: true,
   currency: 'INR',
   aiModel: 'google/gemini-2.0-flash-exp:free',
@@ -51,6 +53,12 @@ export const storage = {
   },
   async saveCustomCategories(list: CategoryInfo[]): Promise<void> {
     try { await AsyncStorage.setItem(KEYS.CATEGORIES, JSON.stringify(list)); } catch {}
+  },
+  async loadMerchantMemory(): Promise<MerchantMemory> {
+    try { const data = await AsyncStorage.getItem(KEYS.MERCHANT_MEMORY); return data ? JSON.parse(data) : {}; } catch { return {}; }
+  },
+  async saveMerchantMemory(m: MerchantMemory): Promise<void> {
+    try { await AsyncStorage.setItem(KEYS.MERCHANT_MEMORY, JSON.stringify(m)); } catch {}
   },
   async clearAll(): Promise<void> {
     try { await AsyncStorage.multiRemove(Object.values(KEYS)); } catch {}

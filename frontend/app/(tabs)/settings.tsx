@@ -97,14 +97,23 @@ export default function SettingsScreen() {
         </Section>
 
         {/* AI */}
-        <Section title="AI Insights" subtitle="Powered by OpenRouter">
+        <Section title="AI Insights" subtitle="Powered by OpenRouter (BYOK)">
           <Row
             icon="sparkles"
             iconColor={colors.accent}
             iconBg={colors.infoBg}
-            title="Enable AI insights"
-            subtitle="Use AI to analyze your spending"
+            title="AI insights"
+            subtitle="Analyze your spending in Analytics"
             right={<Switch value={settings.enableAiInsights} onValueChange={(v) => updateSettings({ enableAiInsights: v })} trackColor={{ false: colors.border, true: colors.accent }} thumbColor="#fff" />}
+          />
+          <Divider />
+          <Row
+            icon="hardware-chip"
+            iconColor={colors.warning}
+            iconBg={colors.warningBg}
+            title="AI parse fallback"
+            subtitle="When a UPI SMS doesn't match a template, use AI to parse it. Off by default. Account numbers are redacted before sending."
+            right={<Switch value={settings.enableLlmFallback} onValueChange={(v) => updateSettings({ enableLlmFallback: v })} trackColor={{ false: colors.border, true: colors.warning }} thumbColor="#fff" />}
           />
           <Divider />
           <View style={styles.apiRow}>

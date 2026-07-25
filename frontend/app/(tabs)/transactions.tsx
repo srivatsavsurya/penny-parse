@@ -40,7 +40,7 @@ export default function TransactionsScreen() {
     const map: Record<string, Transaction[]> = {};
     filtered.forEach((t) => { if (!map[t.date]) map[t.date] = []; map[t.date].push(t); });
     return Object.entries(map).sort((a, b) => (a[0] < b[0] ? 1 : -1)).map(([date, data]) => ({ title: date, data }));
-  }, [filtered]);
+  }, [filtered]);jk
 
   const markedDates = useMemo(() => {
     const result: any = {};
