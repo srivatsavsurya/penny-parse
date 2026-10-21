@@ -86,3 +86,11 @@ android-sdk/
 credentials.json
 *.key
 .credentials
+
+# Generated caches and local env
+.metro-cache/
+frontend/.metro-cache/
+.env
+.env.*
+!.env.example
+test_reports/
